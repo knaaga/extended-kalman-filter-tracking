@@ -36,6 +36,21 @@ FusionEKF::FusionEKF() {
    * TODO: Finish initializing the FusionEKF.
    * TODO: Set the process and measurement noises
    */
+  ekf_.x_ = VectorXd(4); // 4D state vector
+
+  ekf_.F_ = MatrixXd(4, 4); // state transition matrix
+  ekf_.F_ << 1, 0, 1, 0,
+             0, 1, 0, 1,
+             0, 0, 1, 0,
+             0, 0, 0, 1;
+
+  ekf_.P_ = MatrixXd(4, 4); // object or state covariance matrix
+  ekf_.P_ << 1, 0, 0, 0,
+             0, 1, 0, 0,
+             0, 0, 1000, 0,
+             0, 0, 0, 1000;
+
+  ekf_.Q_ = MatrixXd(4, 4); // process noise covariance matrix
 
 
 }
@@ -59,16 +74,31 @@ void FusionEKF::ProcessMeasurement(const MeasurementPackage &measurement_pack) {
     // first measurement
     cout << "EKF: " << endl;
     ekf_.x_ = VectorXd(4);
-    ekf_.x_ << 1, 1, 1, 1;
+
+    previous_timestamp_ = measurement_pack.timestamp_;
+
 
     if (measurement_pack.sensor_type_ == MeasurementPackage::RADAR) {
       // TODO: Convert radar from polar to cartesian coordinates 
       //         and initialize state.
+      float rho = measurement_pack.raw_measurements_[0];
+      float phi = measurement_pack.raw_measurements_[1];
+      float rho_dot = measurement_pack.raw_measurements_[2];
+
+      while (phi <=-180) { phi += 360; }
+      while (phi >= 180) { phi -= 360; }
+
+      float px = rho*cos(phi);
+      float py = rho*sin(phi);
+      float vx = rho_dot*cos(phi);
+      float vy = rho_dot*sin(phi);
+
+      ekf_.x_ << px, py, vx, vy;
 
     }
     else if (measurement_pack.sensor_type_ == MeasurementPackage::LASER) {
       // TODO: Initialize state.
-
+      ekf_.x_ << measurement_pack.raw_measurements_[0], measurement_pack.raw_measurements_[1], 0, 0;
     }
 
     // done initializing, no need to predict or update
@@ -86,6 +116,23 @@ void FusionEKF::ProcessMeasurement(const MeasurementPackage &measurement_pack) {
    * TODO: Update the process noise covariance matrix.
    * Use noise_ax = 9 and noise_ay = 9 for your Q matrix.
    */
+
+  float dt = (measurement_pack.timestamp_ - previous_timestamp_) / 1000000.0;
+  previous_timestamp_ = measurement_pack.timestamp_;
+
+  // state transition matrix
+  ekf_.F_ << 1, 0, dt, 0,
+      0, 1, 0, dt,
+      0, 0, 1, 0,
+      0, 0, 0, 1;
+
+  // covariance matrix
+  float noise_ax = 9.0;
+  float noise_ay = 9.0;
+  ekf_.Q_ <<   0.25 * pow(dt, 4) * noise_ax, 0, 0.5 * pow(dt, 3) * noise_ax, 0,
+          0, 0.25 * pow(dt, 4) * noise_ay, 0, 0.5 * pow(dt, 3) * noise_ay,
+          0.5 * pow(dt, 3) * noise_ax, 0, pow(dt, 2)* noise_ax, 0,
+          0, 0.5 * pow(dt, 3) * noise_ay, 0, pow(dt, 2)* noise_ax;
 
   ekf_.Predict();
 

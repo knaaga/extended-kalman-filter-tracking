@@ -27,7 +27,7 @@ void KalmanFilter::Predict() {
    * TODO: predict the state
    */
   x_ = F_ * x_;
-  P_ = F_ * P_ * F_.transpose()+ Q_;
+  P_ = F_ * P_ * F_.transpose() + Q_;
 }
 
 void KalmanFilter::Update(const VectorXd &meas) {
@@ -60,19 +60,28 @@ void KalmanFilter::UpdateEKF(const VectorXd &meas) {
   VectorXd z_pred = VectorXd(3);
   double px = x_[0];
   double py = x_[1];
+
+  if (abs(px) < 0.0001) {
+    px = 0.0001;
+  }
+  
+  if (abs(py) < 0.0001) {
+    py = 0.0001;
+  }
+
   double vx = x_[2];
   double vy = x_[3];
 
   double rho = sqrt(px*px + py*py);
-  double phi = atan(py/px);
+  double phi = atan2(py,px);
   double rho_dot = (px*vx + py*vy)/sqrt(px*px + py*py);
-
-  while (phi <=-M_PI) { phi += (M_PI*2); }
-  while (phi >= M_PI) { phi -= (M_PI*2); }
 
   z_pred << rho, phi, rho_dot;
 
   VectorXd y = z - z_pred;
+  while (y[1] <-M_PI) { y[1] += (M_PI*2); }
+  while (y[1] > M_PI) { y[1] -= (M_PI*2); }
+
   MatrixXd S = H_ * P_ * H_.transpose() + R_;
   MatrixXd K = P_ * H_.transpose() * S.inverse();
 
